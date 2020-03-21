@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from statsmodels.tsa.seasonal import seasonal_decompose
-from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.stattools import adfuller,acf,pacf
+from statsmodels.tsa.arima_model import ARIMA
 
 #Fuction for testing the stationarity of the timeseries
 def test_stationarity(timeseries):
@@ -19,7 +20,7 @@ def test_stationarity(timeseries):
     rolmean = timeseries.rolling(1).mean()
     rolstd = timeseries.rolling(1).std()#Plot rolling statistics:
     plt.plot(timeseries, color='pink',label='Original')
-    #plt.plot(rolmean, color='red', label='Rolling Mean')
+    plt.plot(rolmean, color='red', label='Rolling Mean')
     plt.plot(rolstd, color='black', label = 'Rolling Std')
     plt.legend(loc='best')
     plt.title('Rolling Mean & Standard Deviation')
@@ -49,7 +50,38 @@ for i in range(len(df1.columns)):
     y_log.index = df1.index
     df1.iloc[:,i] = y_log
 
+moving_avg = y_log.rolling(2).mean()
+plt.plot(y_log)
+plt.plot(moving_avg,color='red')
 
+#Finding the values of p and q to be used in ARIMA model
+lag_acf = acf(y_log,nlags=6)
+lag_pacf = pacf(y_log,method='ols',nlags=6)
+
+#Plot ACF
+plt.subplot(121)
+plt.plot(lag_acf)
+plt.axhline(y=0,linestyle='--',color='gray')
+plt.axhline(y=-1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
+plt.axhline(y=1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
+plt.title('Autocorrelation Function')
+
+#Plot PACF
+plt.subplot(122)
+plt.plot(lag_pacf)
+plt.axhline(y=0,linestyle='--',color='gray')
+plt.axhline(y=-1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
+plt.axhline(y=1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
+plt.title('Partial Autocorrelation Function')
+plt.tight_layout()
+
+p=1
+q=1
+model = ARIMA(y_log,order=(1,0,0))
+results_ARIMA = model.fit(disp=-1)
+plt.plot(y_log)
+plt.plot(results_ARIMA.fittedvalues,color='red')
+plt.title('RSS=%.4f',sum((results_ARIMA.fittedvalues-y_log)**2))
 
 df1.iloc[:,0].plot(figsize=(15, 6))
 plt.show()
