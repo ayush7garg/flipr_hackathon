@@ -6,32 +6,23 @@ Created on Sat Mar 21 14:02:12 2020
 """
 
 
-import warnings
-import itertools
-import numpy as np
 import matplotlib.pyplot as plt
-warnings.filterwarnings("ignore")
-plt.style.use('fivethirtyeight')
 import pandas as pd
-import statsmodels.api as sm
-import matplotlib
-
-matplotlib.rcParams['axes.labelsize'] = 14
-matplotlib.rcParams['xtick.labelsize'] = 12
-matplotlib.rcParams['ytick.labelsize'] = 12
-matplotlib.rcParams['text.color'] = 'k'
+from statsmodels.tsa.seasonal import seasonal_decompose
 
 xlsx = pd.ExcelFile('Train_dataset.xlsx')
 df = pd.read_excel(xlsx, 'Diuresis_TS')
+df = df.set_index("people_ID")
 
-#df = df.set_index('people_ID')
-df = df.T
+df1 = df.T
 
-y = df.iloc[0,1:]
-df.iloc[59].plot(figsize=(15,6))
+df1.iloc[:,0].plot(figsize=(15, 6))
 plt.show()
-
-
-decomposition = sm.tsa.seasonal_decompose(df[1], model='additive')
+y = df1.iloc[:,0]
+y = y.to_frame()
+y.index = df1.index
+from pylab import rcParams
+rcParams['figure.figsize'] = 18, 8
+decomposition = seasonal_decompose(y,freq=1)
 fig = decomposition.plot()
 plt.show()
