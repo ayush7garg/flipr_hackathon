@@ -7,11 +7,7 @@ Created on Fri Mar 20 18:45:51 2020
 
 import pandas as pd
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
-import statsmodels.api as sm
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LinearRegression
 
 train_data = pd.read_excel('Train_dataset.xlsx').fillna(method='ffill')
@@ -51,6 +47,10 @@ required_features = x_train.drop(x_train[uncorrelated_features],axis=1)
 
 x_train = required_features
 
+sc_X = StandardScaler()
+x_train = sc_X.fit_transform(x_train)
+
+
 regressor = LinearRegression()
 regressor.fit(x_train, y_train)
 
@@ -65,6 +65,8 @@ test_data['Pulmonary score'] = labelEncoder.fit_transform(test_data['Pulmonary s
 
 x_test = test_data.drop(test_data[uncorrelated_features],axis=1)
 x_test = x_test.drop(x_test[to_drop],axis=1)
+x_test = sc_X.fit_transform(x_test)
+
 y_pred = regressor.predict(x_test)
 
 submission = []
