@@ -120,7 +120,7 @@ submission.append(test_data["people_ID"])
 submission.append(y_pred)
 submission = np.asarray(submission)
 submission = np.transpose(submission)
-np.savetxt('Infected Probabilities(27/03/2020).csv',submission,fmt='%d,%f',delimiter=',',header="people_ID,infect_prob")
+np.savetxt('Infected Probabilities 27 March 2020.csv',submission,fmt='%d,%f',delimiter=',',header="people_ID,infect_prob")
 
 
 
