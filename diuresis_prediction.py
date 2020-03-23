@@ -13,7 +13,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LinearRegression
 
 
-#Loading the training dataset
+#Loading the training dataset of infected probabilities
 train_data = pd.read_excel('Train_dataset.xlsx').fillna(method='ffill')
 
 #Data Preprocessing
@@ -56,8 +56,10 @@ df = pd.read_excel(xlsx, 'Diuresis_TS')
 df = df.set_index("people_ID")
 
 df1 = df.T
+
+#Forecasting diuresis values for 27th March 2020
 forecast_values = []
-for i in range(len(df1.columns)):    
+for i in range(9865,len(df1.columns)):    
     y = df1.iloc[:,i]
     y = y.to_frame()
     y.index = y.index.date
@@ -71,16 +73,25 @@ for i in range(len(df1.columns)):
     f = y_forecast.values[7,15]
     forecast_values.append(f)
 
-diuresis_train = pd.DataFrame((x_train['Diuresis'],forecast_values),columns=['20/03/2020','27/03/2020'])
+#Creating a dataframe for diuresis values on 20th March and 27th March 2020
+diuresis_train = pd.DataFrame(forecast_values,columns=['27/03/2020'])
+h = df1.iloc[0].values
+diuresis_train['20/03/2020'] = h
 x_diuresis_train = diuresis_train["20/03/2020"]
+x_diuresis_train = np.atleast_2d(x_diuresis_train)
+x_diuresis_train = x_diuresis_train.T
 y_diuresis_train = diuresis_train["27/03/2020"]
+y_diuresis_train = np.atleast_2d(y_diuresis_train)
+y_diuresis_train = y_diuresis_train.T
 
+#Fitting the training values in Linear Regression Model
 regressor_diuresis = LinearRegression()
 regressor_diuresis.fit(x_diuresis_train,y_diuresis_train)
 
 #Loading test dataset
 test_data = pd.read_excel('Test_dataset.xlsx')
 
+#Data Preprocessing
 labelEncoder = LabelEncoder()
 test_data['Region'] = labelEncoder.fit_transform(test_data['Region'])
 test_data['Gender'] = labelEncoder.fit_transform(test_data['Gender'])
@@ -94,10 +105,13 @@ x_test = test_data.drop(test_data[uncorrelated_features],axis=1)
 x_test = x_test.drop(x_test[to_drop],axis=1)
 
 x_diuresis_test = x_test['Diuresis']
+x_diuresis_test = np.atleast_2d(x_diuresis_test)
+x_diuresis_test = x_diuresis_test.T
 
+#Predicting the diuresis values for the test dataset
 y_diuresis_pred = regressor_diuresis.predict(x_diuresis_test)
 
-
+#Changing the diuresis values in the dataset with the new values
 x_train['Diuresis'] = forecast_values
 x_test['Diuresis'] = y_diuresis_pred
 
@@ -106,7 +120,7 @@ x_test['Diuresis'] = y_diuresis_pred
 sc_X = StandardScaler()
 x_train = sc_X.fit_transform(x_train)
 
-#Training the model
+#Training the model for infected probabilities with new diuresis values
 regressor = LinearRegression()
 regressor.fit(x_train, y_train)
 
