@@ -6,94 +6,121 @@ Created on Sat Mar 21 14:02:12 2020
 """
 
 #Importing Libraries
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from statsmodels.tsa.seasonal import seasonal_decompose
-from statsmodels.tsa.stattools import adfuller,acf,pacf
-from statsmodels.tsa.arima_model import ARIMA
+import fbprophet
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.linear_model import LinearRegression
 
-#Fuction for testing the stationarity of the timeseries
-def test_stationarity(timeseries):
-    
-    #Determing rolling statistics
-    rolmean = timeseries.rolling(1).mean()
-    rolstd = timeseries.rolling(1).std()#Plot rolling statistics:
-    plt.plot(timeseries, color='pink',label='Original')
-    plt.plot(rolmean, color='red', label='Rolling Mean')
-    plt.plot(rolstd, color='black', label = 'Rolling Std')
-    plt.legend(loc='best')
-    plt.title('Rolling Mean & Standard Deviation')
-    plt.show()
-    #Perform Dickey-Fuller test:
-    print('Results of Dickey-Fuller Test:')
-    dftest = adfuller(timeseries, autolag='AIC')
-    dfoutput = pd.Series(dftest[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
-    for key,value in dftest[4].items():
-        dfoutput['Critical Value (%s)'%key] = value
-    print(dfoutput)
 
-#Loading dataset
+#Loading the training dataset
+train_data = pd.read_excel('Train_dataset.xlsx').fillna(method='ffill')
+
+#Data Preprocessing
+labelEncoder = LabelEncoder()
+train_data['Region'] = labelEncoder.fit_transform(train_data['Region'])
+train_data['Gender'] = labelEncoder.fit_transform(train_data['Gender'])
+train_data['Occupation'] = labelEncoder.fit_transform(train_data['Occupation'])
+train_data['Mode_transport'] = labelEncoder.fit_transform(train_data['Mode_transport'])
+train_data['comorbidity'] = labelEncoder.fit_transform(train_data['comorbidity'])
+train_data['cardiological pressure'] = labelEncoder.fit_transform(train_data['cardiological pressure'])
+train_data['Pulmonary score'] = labelEncoder.fit_transform(train_data['Pulmonary score'])
+
+x_train = train_data.drop("Infect_Prob",1)
+y_train = train_data["Infect_Prob"]
+
+#Calculating the correlation between features
+cor = train_data.corr()
+cor_target = abs(cor["Infect_Prob"])
+
+#Removing the highly correlated independent variables
+# Select upper triangle of correlation matrix
+upper = cor.where(np.triu(np.ones(cor.shape), k=1).astype(np.bool))
+
+# Find index of feature columns with correlation greater than 0.95
+to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+
+x_train = x_train.drop(x_train[to_drop], axis=1)
+
+#Selecting the features having more correlation with the target variable as compared to others
+relevant_features = cor_target[cor_target>0.0086]
+
+uncorrelated_features = [feature for feature in train_data if feature not in relevant_features]
+
+x_train = x_train.drop(x_train[uncorrelated_features],axis=1)
+
+
+#Loading diuresis dataset
 xlsx = pd.ExcelFile('Train_dataset.xlsx')
 df = pd.read_excel(xlsx, 'Diuresis_TS')
 df = df.set_index("people_ID")
 
 df1 = df.T
-
-#Applying log transformation
-for i in range(len(df1.columns)):
+forecast_values = []
+for i in range(len(df1.columns)):    
     y = df1.iloc[:,i]
     y = y.to_frame()
-    y.index = df1.index
-    y_log = np.log(y)
-    #y_log = y_log.to_frame()
-    y_log.index = df1.index
-    df1.iloc[:,i] = y_log
+    y.index = y.index.date
+    mapping = {y.columns[0]:"y"}
+    y = y.rename(columns=mapping)
+    y['ds'] = y.index
+    y_prophet = fbprophet.Prophet(changepoint_prior_scale=0.8,daily_seasonality=True,n_changepoints=4,yearly_seasonality=False,weekly_seasonality=False)
+    y_prophet.fit(y)
+    y_forecast = y_prophet.make_future_dataframe(periods=1, freq='D')
+    y_forecast = y_prophet.predict(y_forecast)
+    f = y_forecast.values[7,15]
+    forecast_values.append(f)
 
-moving_avg = y_log.rolling(2).mean()
-plt.plot(y_log)
-plt.plot(moving_avg,color='red')
+diuresis_train = pd.DataFrame((x_train['Diuresis'],forecast_values),columns=['20/03/2020','27/03/2020'])
+x_diuresis_train = diuresis_train["20/03/2020"]
+y_diuresis_train = diuresis_train["27/03/2020"]
 
-#Finding the values of p and q to be used in ARIMA model
-lag_acf = acf(y_log,nlags=6)
-lag_pacf = pacf(y_log,method='ols',nlags=6)
+regressor_diuresis = LinearRegression()
+regressor_diuresis.fit(x_diuresis_train,y_diuresis_train)
 
-#Plot ACF
-plt.subplot(121)
-plt.plot(lag_acf)
-plt.axhline(y=0,linestyle='--',color='gray')
-plt.axhline(y=-1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
-plt.axhline(y=1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
-plt.title('Autocorrelation Function')
+#Loading test dataset
+test_data = pd.read_excel('Test_dataset.xlsx')
 
-#Plot PACF
-plt.subplot(122)
-plt.plot(lag_pacf)
-plt.axhline(y=0,linestyle='--',color='gray')
-plt.axhline(y=-1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
-plt.axhline(y=1.96/np.sqrt(len(y_log)),linestyle='--',color='gray')
-plt.title('Partial Autocorrelation Function')
-plt.tight_layout()
+labelEncoder = LabelEncoder()
+test_data['Region'] = labelEncoder.fit_transform(test_data['Region'])
+test_data['Gender'] = labelEncoder.fit_transform(test_data['Gender'])
+test_data['Occupation'] = labelEncoder.fit_transform(test_data['Occupation'])
+test_data['Mode_transport'] = labelEncoder.fit_transform(test_data['Mode_transport'])
+test_data['comorbidity'] = labelEncoder.fit_transform(test_data['comorbidity'])
+test_data['cardiological pressure'] = labelEncoder.fit_transform(test_data['cardiological pressure'])
+test_data['Pulmonary score'] = labelEncoder.fit_transform(test_data['Pulmonary score'])
 
-p=1
-q=1
-model = ARIMA(y_log,order=(1,0,0))
-results_ARIMA = model.fit(disp=-1)
-plt.plot(y_log)
-plt.plot(results_ARIMA.fittedvalues,color='red')
-plt.title('RSS=%.4f',sum((results_ARIMA.fittedvalues-y_log)**2))
+x_test = test_data.drop(test_data[uncorrelated_features],axis=1)
+x_test = x_test.drop(x_test[to_drop],axis=1)
 
-df1.iloc[:,0].plot(figsize=(15, 6))
-plt.show()
-y = df1.iloc[:,3]
-y = y.to_frame()
-y.index = df1.index
+x_diuresis_test = x_test['Diuresis']
 
-decomposition = seasonal_decompose(y_log,freq=1)
-fig = decomposition.plot()
-plt.show()
+y_diuresis_pred = regressor_diuresis.predict(x_diuresis_test)
 
-test_stationarity(y)
-y_log = np.log(df1.iloc[:,3])
-plt.plot(y_log)
-test_stationarity(y_log)
+
+x_train['Diuresis'] = forecast_values
+x_test['Diuresis'] = y_diuresis_pred
+
+
+#Feature Scaling
+sc_X = StandardScaler()
+x_train = sc_X.fit_transform(x_train)
+
+#Training the model
+regressor = LinearRegression()
+regressor.fit(x_train, y_train)
+
+x_test = sc_X.fit_transform(x_test)
+#Calculating the predictions
+y_pred = regressor.predict(x_test)
+
+#Output file
+submission = []
+submission.append(test_data["people_ID"])
+submission.append(y_pred)
+submission = np.asarray(submission)
+submission = np.transpose(submission)
+np.savetxt('Infected Probabilities(27/03/2020).csv',submission,fmt='%d,%f',delimiter=',',header="people_ID,infect_prob")
+
+
+
